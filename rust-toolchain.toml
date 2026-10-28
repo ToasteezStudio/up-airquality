@@ -1,0 +1,7 @@
+# Pin the current point release. 1.96.0, 1.97.0 and 1.98.0 each shipped a
+# miscompilation fixed in the next point release, so never pin a ".0". CI
+# checks rustc against this file; rustup installs it on the first build.
+[toolchain]
+channel = "1.98.1"
+components = ["rustfmt", "clippy"]
+profile = "default"

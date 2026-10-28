@@ -1,0 +1,794 @@
+{
+ "title": "Toasteez Air",
+ "uid": "toasteez-air",
+ "schemaVersion": 39,
+ "version": 2,
+ "refresh": "1m",
+ "time": {
+  "from": "now-24h",
+  "to": "now"
+ },
+ "timezone": "browser",
+ "tags": [
+  "air-quality",
+  "toasteez"
+ ],
+ "panels": [
+  {
+   "type": "timeseries",
+   "title": "AQI",
+   "datasource": {
+    "type": "postgres",
+    "uid": "timescale-airquality"
+   },
+   "gridPos": {
+    "h": 6,
+    "w": 8,
+    "x": 0,
+    "y": 0
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "",
+     "custom": {
+      "lineWidth": 2,
+      "fillOpacity": 10,
+      "showPoints": "never",
+      "gradientMode": "opacity"
+     },
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       },
+       {
+        "color": "yellow",
+        "value": 50
+       },
+       {
+        "color": "red",
+        "value": 100
+       }
+      ]
+     },
+     "color": {
+      "mode": "thresholds"
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "showLegend": false
+    },
+    "tooltip": {
+     "mode": "single"
+    }
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "format": "time_series",
+     "rawQuery": true,
+     "datasource": {
+      "type": "postgres",
+      "uid": "timescale-airquality"
+     },
+     "rawSql": "SELECT $__timeGroupAlias(\"ts\", $__interval), avg(aqi) AS \"AQI\" FROM air_quality WHERE $__timeFilter(\"ts\") GROUP BY 1 ORDER BY 1"
+    }
+   ]
+  },
+  {
+   "type": "timeseries",
+   "title": "CO₂",
+   "datasource": {
+    "type": "postgres",
+    "uid": "timescale-airquality"
+   },
+   "gridPos": {
+    "h": 6,
+    "w": 8,
+    "x": 8,
+    "y": 0
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "ppm",
+     "custom": {
+      "lineWidth": 2,
+      "fillOpacity": 10,
+      "showPoints": "never",
+      "gradientMode": "opacity"
+     },
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       },
+       {
+        "color": "yellow",
+        "value": 800
+       },
+       {
+        "color": "red",
+        "value": 1200
+       }
+      ]
+     },
+     "color": {
+      "mode": "thresholds"
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "showLegend": false
+    },
+    "tooltip": {
+     "mode": "single"
+    }
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "format": "time_series",
+     "rawQuery": true,
+     "datasource": {
+      "type": "postgres",
+      "uid": "timescale-airquality"
+     },
+     "rawSql": "SELECT $__timeGroupAlias(\"ts\", $__interval), avg(co2) AS \"CO₂\" FROM air_quality WHERE $__timeFilter(\"ts\") GROUP BY 1 ORDER BY 1"
+    }
+   ]
+  },
+  {
+   "type": "timeseries",
+   "title": "Temperature",
+   "datasource": {
+    "type": "postgres",
+    "uid": "timescale-airquality"
+   },
+   "gridPos": {
+    "h": 6,
+    "w": 8,
+    "x": 16,
+    "y": 0
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "celsius",
+     "custom": {
+      "lineWidth": 2,
+      "fillOpacity": 10,
+      "showPoints": "never",
+      "gradientMode": "opacity"
+     },
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       }
+      ]
+     },
+     "color": {
+      "mode": "thresholds"
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "showLegend": false
+    },
+    "tooltip": {
+     "mode": "single"
+    }
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "format": "time_series",
+     "rawQuery": true,
+     "datasource": {
+      "type": "postgres",
+      "uid": "timescale-airquality"
+     },
+     "rawSql": "SELECT $__timeGroupAlias(\"ts\", $__interval), avg(temperature) AS \"Temperature\" FROM air_quality WHERE $__timeFilter(\"ts\") GROUP BY 1 ORDER BY 1"
+    }
+   ]
+  },
+  {
+   "type": "timeseries",
+   "title": "Humidity",
+   "datasource": {
+    "type": "postgres",
+    "uid": "timescale-airquality"
+   },
+   "gridPos": {
+    "h": 6,
+    "w": 8,
+    "x": 0,
+    "y": 6
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "percent",
+     "custom": {
+      "lineWidth": 2,
+      "fillOpacity": 10,
+      "showPoints": "never",
+      "gradientMode": "opacity"
+     },
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       }
+      ]
+     },
+     "color": {
+      "mode": "thresholds"
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "showLegend": false
+    },
+    "tooltip": {
+     "mode": "single"
+    }
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "format": "time_series",
+     "rawQuery": true,
+     "datasource": {
+      "type": "postgres",
+      "uid": "timescale-airquality"
+     },
+     "rawSql": "SELECT $__timeGroupAlias(\"ts\", $__interval), avg(humidity) AS \"Humidity\" FROM air_quality WHERE $__timeFilter(\"ts\") GROUP BY 1 ORDER BY 1"
+    }
+   ]
+  },
+  {
+   "type": "timeseries",
+   "title": "PM1.0",
+   "datasource": {
+    "type": "postgres",
+    "uid": "timescale-airquality"
+   },
+   "gridPos": {
+    "h": 6,
+    "w": 8,
+    "x": 8,
+    "y": 6
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "conμgm3",
+     "custom": {
+      "lineWidth": 2,
+      "fillOpacity": 10,
+      "showPoints": "never",
+      "gradientMode": "opacity"
+     },
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       },
+       {
+        "color": "yellow",
+        "value": 10
+       },
+       {
+        "color": "red",
+        "value": 25
+       }
+      ]
+     },
+     "color": {
+      "mode": "thresholds"
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "showLegend": false
+    },
+    "tooltip": {
+     "mode": "single"
+    }
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "format": "time_series",
+     "rawQuery": true,
+     "datasource": {
+      "type": "postgres",
+      "uid": "timescale-airquality"
+     },
+     "rawSql": "SELECT $__timeGroupAlias(\"ts\", $__interval), avg(pm1p0) AS \"PM1.0\" FROM air_quality WHERE $__timeFilter(\"ts\") GROUP BY 1 ORDER BY 1"
+    }
+   ]
+  },
+  {
+   "type": "timeseries",
+   "title": "PM2.5",
+   "datasource": {
+    "type": "postgres",
+    "uid": "timescale-airquality"
+   },
+   "gridPos": {
+    "h": 6,
+    "w": 8,
+    "x": 16,
+    "y": 6
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "conμgm3",
+     "custom": {
+      "lineWidth": 2,
+      "fillOpacity": 10,
+      "showPoints": "never",
+      "gradientMode": "opacity"
+     },
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       },
+       {
+        "color": "yellow",
+        "value": 12
+       },
+       {
+        "color": "red",
+        "value": 35
+       }
+      ]
+     },
+     "color": {
+      "mode": "thresholds"
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "showLegend": false
+    },
+    "tooltip": {
+     "mode": "single"
+    }
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "format": "time_series",
+     "rawQuery": true,
+     "datasource": {
+      "type": "postgres",
+      "uid": "timescale-airquality"
+     },
+     "rawSql": "SELECT $__timeGroupAlias(\"ts\", $__interval), avg(pm2p5) AS \"PM2.5\" FROM air_quality WHERE $__timeFilter(\"ts\") GROUP BY 1 ORDER BY 1"
+    }
+   ]
+  },
+  {
+   "type": "timeseries",
+   "title": "PM4.0",
+   "datasource": {
+    "type": "postgres",
+    "uid": "timescale-airquality"
+   },
+   "gridPos": {
+    "h": 6,
+    "w": 8,
+    "x": 0,
+    "y": 12
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "conμgm3",
+     "custom": {
+      "lineWidth": 2,
+      "fillOpacity": 10,
+      "showPoints": "never",
+      "gradientMode": "opacity"
+     },
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       },
+       {
+        "color": "yellow",
+        "value": 25
+       },
+       {
+        "color": "red",
+        "value": 50
+       }
+      ]
+     },
+     "color": {
+      "mode": "thresholds"
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "showLegend": false
+    },
+    "tooltip": {
+     "mode": "single"
+    }
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "format": "time_series",
+     "rawQuery": true,
+     "datasource": {
+      "type": "postgres",
+      "uid": "timescale-airquality"
+     },
+     "rawSql": "SELECT $__timeGroupAlias(\"ts\", $__interval), avg(pm4p0) AS \"PM4.0\" FROM air_quality WHERE $__timeFilter(\"ts\") GROUP BY 1 ORDER BY 1"
+    }
+   ]
+  },
+  {
+   "type": "timeseries",
+   "title": "PM10",
+   "datasource": {
+    "type": "postgres",
+    "uid": "timescale-airquality"
+   },
+   "gridPos": {
+    "h": 6,
+    "w": 8,
+    "x": 8,
+    "y": 12
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "conμgm3",
+     "custom": {
+      "lineWidth": 2,
+      "fillOpacity": 10,
+      "showPoints": "never",
+      "gradientMode": "opacity"
+     },
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       },
+       {
+        "color": "yellow",
+        "value": 54
+       },
+       {
+        "color": "red",
+        "value": 154
+       }
+      ]
+     },
+     "color": {
+      "mode": "thresholds"
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "showLegend": false
+    },
+    "tooltip": {
+     "mode": "single"
+    }
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "format": "time_series",
+     "rawQuery": true,
+     "datasource": {
+      "type": "postgres",
+      "uid": "timescale-airquality"
+     },
+     "rawSql": "SELECT $__timeGroupAlias(\"ts\", $__interval), avg(pm10p0) AS \"PM10\" FROM air_quality WHERE $__timeFilter(\"ts\") GROUP BY 1 ORDER BY 1"
+    }
+   ]
+  },
+  {
+   "type": "timeseries",
+   "title": "VOC index",
+   "datasource": {
+    "type": "postgres",
+    "uid": "timescale-airquality"
+   },
+   "gridPos": {
+    "h": 6,
+    "w": 8,
+    "x": 16,
+    "y": 12
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "",
+     "custom": {
+      "lineWidth": 2,
+      "fillOpacity": 10,
+      "showPoints": "never",
+      "gradientMode": "opacity"
+     },
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       },
+       {
+        "color": "yellow",
+        "value": 150
+       },
+       {
+        "color": "red",
+        "value": 250
+       }
+      ]
+     },
+     "color": {
+      "mode": "thresholds"
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "showLegend": false
+    },
+    "tooltip": {
+     "mode": "single"
+    }
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "format": "time_series",
+     "rawQuery": true,
+     "datasource": {
+      "type": "postgres",
+      "uid": "timescale-airquality"
+     },
+     "rawSql": "SELECT $__timeGroupAlias(\"ts\", $__interval), avg(voc) AS \"VOC index\" FROM air_quality WHERE $__timeFilter(\"ts\") GROUP BY 1 ORDER BY 1"
+    }
+   ]
+  },
+  {
+   "type": "timeseries",
+   "title": "NOx index",
+   "datasource": {
+    "type": "postgres",
+    "uid": "timescale-airquality"
+   },
+   "gridPos": {
+    "h": 6,
+    "w": 8,
+    "x": 0,
+    "y": 18
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "",
+     "custom": {
+      "lineWidth": 2,
+      "fillOpacity": 10,
+      "showPoints": "never",
+      "gradientMode": "opacity"
+     },
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       },
+       {
+        "color": "yellow",
+        "value": 20
+       },
+       {
+        "color": "red",
+        "value": 150
+       }
+      ]
+     },
+     "color": {
+      "mode": "thresholds"
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "showLegend": false
+    },
+    "tooltip": {
+     "mode": "single"
+    }
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "format": "time_series",
+     "rawQuery": true,
+     "datasource": {
+      "type": "postgres",
+      "uid": "timescale-airquality"
+     },
+     "rawSql": "SELECT $__timeGroupAlias(\"ts\", $__interval), avg(nox) AS \"NOx index\" FROM air_quality WHERE $__timeFilter(\"ts\") GROUP BY 1 ORDER BY 1"
+    }
+   ]
+  },
+  {
+   "type": "timeseries",
+   "title": "tVOC",
+   "datasource": {
+    "type": "postgres",
+    "uid": "timescale-airquality"
+   },
+   "gridPos": {
+    "h": 6,
+    "w": 8,
+    "x": 8,
+    "y": 18
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "ppb",
+     "custom": {
+      "lineWidth": 2,
+      "fillOpacity": 10,
+      "showPoints": "never",
+      "gradientMode": "opacity"
+     },
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       },
+       {
+        "color": "yellow",
+        "value": 220
+       },
+       {
+        "color": "red",
+        "value": 660
+       }
+      ]
+     },
+     "color": {
+      "mode": "thresholds"
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "showLegend": false
+    },
+    "tooltip": {
+     "mode": "single"
+    }
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "format": "time_series",
+     "rawQuery": true,
+     "datasource": {
+      "type": "postgres",
+      "uid": "timescale-airquality"
+     },
+     "rawSql": "SELECT $__timeGroupAlias(\"ts\", $__interval), avg(tvoc) AS \"tVOC\" FROM air_quality WHERE $__timeFilter(\"ts\") GROUP BY 1 ORDER BY 1"
+    }
+   ]
+  },
+  {
+   "type": "timeseries",
+   "title": "Vape index",
+   "datasource": {
+    "type": "postgres",
+    "uid": "timescale-airquality"
+   },
+   "gridPos": {
+    "h": 6,
+    "w": 8,
+    "x": 16,
+    "y": 18
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "",
+     "custom": {
+      "lineWidth": 2,
+      "fillOpacity": 10,
+      "showPoints": "never",
+      "gradientMode": "opacity"
+     },
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       },
+       {
+        "color": "yellow",
+        "value": 1
+       },
+       {
+        "color": "red",
+        "value": 20
+       }
+      ]
+     },
+     "color": {
+      "mode": "thresholds"
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "showLegend": false
+    },
+    "tooltip": {
+     "mode": "single"
+    }
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "format": "time_series",
+     "rawQuery": true,
+     "datasource": {
+      "type": "postgres",
+      "uid": "timescale-airquality"
+     },
+     "rawSql": "SELECT $__timeGroupAlias(\"ts\", $__interval), avg(vape) AS \"Vape index\" FROM air_quality WHERE $__timeFilter(\"ts\") GROUP BY 1 ORDER BY 1"
+    }
+   ]
+  }
+ ]
+}

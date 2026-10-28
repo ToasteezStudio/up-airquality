@@ -1,0 +1,68 @@
+# ESPHome skeleton for an open-source UP-AirQuality replacement firmware.
+#
+# STATUS: DRAFT — flash only after docs/REFLASH.md Step 2 confirms Secure Boot
+# is OFF and Step 3 has a verified backup.
+#
+# UNKNOWNS that must be resolved on the bench (cannot be read from the vendor
+# image): the exact board variant, the I2C SDA/SCL GPIOs wired to the SEN66, the
+# status/ring-LED GPIO, and the Ethernet PHY type/pins (this is a PoE device, so
+# it is wired Ethernet, not Wi-Fi). Placeholders below are marked TODO.
+#
+# SEN66 NOTE: ESPHome's built-in `sen5x` component targets SEN50/54/55. The
+# SEN66 (adds CO2, different I2C command set) is the SEN6x family and may need an
+# external component or the Sensirion `embedded-i2c-sen66` driver via an ESP-IDF
+# build. If `sen6x` is unavailable in your ESPHome version, use the ESP-IDF route
+# (see README) instead of this file.
+
+esphome:
+  name: up-airquality
+  friendly_name: UP-AirQuality (open)
+
+esp32:
+  board: esp32dev        # TODO: confirm exact module (WROOM/WROVER) on the bench
+  framework:
+    type: esp-idf        # esp-idf needed for Ethernet + SEN6x driver
+
+logger:
+api:                      # ESPHome native API (for Home Assistant)
+ota:
+  - platform: esphome
+
+# PoE device → wired Ethernet. TODO: identify PHY + pins with a multimeter /
+# board photos. Common Ubiquiti choice is an LAN8720 RMII PHY; verify before use.
+# ethernet:
+#   type: LAN8720
+#   mdc_pin: GPIO23       # TODO
+#   mdio_pin: GPIO18      # TODO
+#   clk_mode: GPIO0_IN    # TODO
+#   phy_addr: 0           # TODO
+
+# Fallback to Wi-Fi only if you cannot bring up Ethernet during bring-up.
+# wifi:
+#   ssid: !secret wifi_ssid
+#   password: !secret wifi_password
+
+i2c:
+  sda: GPIO21             # TODO: confirm — Ubiquiti custom board, not a dev kit
+  scl: GPIO22             # TODO: confirm
+  scan: true              # leave on during bring-up to find the SEN66 address
+
+# Preferred once SEN6x support is present in your ESPHome:
+# sensor:
+#   - platform: sen6x
+#     pm_1_0:        { name: "PM <1µm"  }
+#     pm_2_5:        { name: "PM <2.5µm" }
+#     pm_4_0:        { name: "PM <4µm"  }
+#     pm_10_0:       { name: "PM <10µm" }
+#     temperature:   { name: "Temperature" }
+#     humidity:      { name: "Humidity" }
+#     voc:           { name: "VOC index" }
+#     nox:           { name: "NOx index" }
+#     co2:           { name: "CO2" }
+#     update_interval: 10s
+
+# Status LED (TODO: find the real GPIO; the vendor fw exposes hasLedStatus).
+# light:
+#   - platform: status_led
+#     name: "Status LED"
+#     pin: GPIOxx

@@ -1,0 +1,29 @@
+# systemd unit for the UP-AirQuality console + dashboard on a dedicated host.
+# Install: copy the binary to /opt/up-airquality/up-airquality, this file to
+#   /etc/systemd/system/up-airquality.service, set <SENSOR_IP> below and
+#   UPAQ_PG_DSN in the env file, then:
+#   systemctl daemon-reload && systemctl enable --now up-airquality
+[Unit]
+Description=Toasteez Air (UP-AirQuality console, dashboard, Timescale writer)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+Environment=RUST_LOG=info
+# Secret DSN lives in a root-only env file (not in this unit):
+#   /etc/up-airquality.env  (chmod 600), one line:
+#   UPAQ_PG_DSN=host=<DB_HOST> port=5432 user=upaq password=... dbname=airquality
+EnvironmentFile=/etc/up-airquality.env
+# --host restricts the console to the sensor's address.
+ExecStart=/opt/up-airquality/up-airquality --host <SENSOR_IP> serve --http-port 8099
+Restart=always
+RestartSec=5
+# Binds high ports 7442 (ucp4) + 8099 (dashboard) — no privilege needed.
+DynamicUser=yes
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+
+[Install]
+WantedBy=multi-user.target

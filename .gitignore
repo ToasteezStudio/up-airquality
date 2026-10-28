@@ -1,0 +1,6 @@
+/target
+backup/*.bin
+backup/*.sha256
+firmware/*.bin
+# Local-only notes, never committed
+*.local.md

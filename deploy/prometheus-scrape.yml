@@ -1,0 +1,11 @@
+# Add this job to your Prometheus config under scrape_configs, then reload
+# Prometheus. Replace COLLECTOR_IP with the address of the host running
+# up-airquality.
+- job_name: up-airquality
+  metrics_path: /metrics
+  scrape_interval: 30s
+  static_configs:
+    - targets: ['COLLECTOR_IP:8099']
+      labels:
+        instance: up-airquality
+        location: home
