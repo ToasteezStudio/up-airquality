@@ -56,7 +56,9 @@ the old binary (overwriting a running executable in place fails with
 
 ## 4. systemd service (on the collector)
 Copy `deploy/up-airquality.service` to `/etc/systemd/system/` and replace
-`<SENSOR_IP>` in its `ExecStart` line, so the console only accepts the sensor.
+`<SENSOR_IP>` in its `ExecStart` line, so the console only accepts your
+sensor. For several sensors, give a comma-separated list
+(`--host 10.0.30.11,10.0.30.12`).
 Put the DSN in a root-only env file instead of the unit. Add `sslmode=require`
 to it, plus `UPAQ_PG_CA=/path/to/ca.pem` for a self-signed server, if the
 database link should be encrypted:
@@ -70,6 +72,14 @@ journalctl -u up-airquality -f     # expect "console listening" + "persisting re
 ```
 To run without a database, skip the env file and remove `EnvironmentFile=`
 from the unit.
+
+To publish to Home Assistant as well, add the broker to the same env file:
+```bash
+echo 'UPAQ_MQTT_URL=mqtt://<user>:<password>@<BROKER_HOST>:1883' >> /etc/up-airquality.env
+systemctl restart up-airquality   # expect "connected to MQTT broker"
+```
+The collector must be able to reach the broker on tcp/1883. MQTT over TLS
+isn't supported yet, so keep that path on a trusted network.
 
 ## 5. Firewall: let the sensor dial the collector
 If the sensor and the collector are on different VLANs/subnets, add a narrow

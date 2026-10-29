@@ -4,9 +4,8 @@
 //! are dropped (with a throttled warning) rather than stalling the console.
 
 use crate::model::Reading;
-use anyhow::{bail, Context, Result};
-use rustls::pki_types::pem::PemObject;
-use rustls::pki_types::CertificateDer;
+use crate::tls;
+use anyhow::{Context, Result};
 use std::future::Future;
 use std::time::Duration;
 use tokio::sync::mpsc;
@@ -23,7 +22,7 @@ pub type Msg = (Reading, String);
 async fn connect(dsn: &str) -> Result<Client> {
     let config: Config = dsn.parse().context("parsing Postgres DSN")?;
     if config.get_ssl_mode() == SslMode::Require {
-        let tls = tokio_postgres_rustls::MakeRustlsConnect::new(tls_config()?);
+        let tls = tokio_postgres_rustls::MakeRustlsConnect::new(tls::client_config("UPAQ_PG_CA")?);
         let (client, conn) = config.connect(tls).await?;
         watch(conn);
         Ok(client)
@@ -40,28 +39,6 @@ fn watch(conn: impl Future<Output = Result<(), tokio_postgres::Error>> + Send + 
             tracing::warn!(error = %e, "pg connection closed");
         }
     });
-}
-
-fn tls_config() -> Result<rustls::ClientConfig> {
-    let mut roots = rustls::RootCertStore::empty();
-    match std::env::var_os("UPAQ_PG_CA") {
-        Some(path) => {
-            for cert in CertificateDer::pem_file_iter(&path).context("opening UPAQ_PG_CA")? {
-                roots.add(cert.context("reading UPAQ_PG_CA")?)?;
-            }
-        }
-        None => {
-            for cert in rustls_native_certs::load_native_certs().certs {
-                let _ = roots.add(cert);
-            }
-        }
-    }
-    if roots.is_empty() {
-        bail!("sslmode=require but no CA certificates to verify the server (set UPAQ_PG_CA)");
-    }
-    Ok(rustls::ClientConfig::builder()
-        .with_root_certificates(roots)
-        .with_no_client_auth())
 }
 
 const INSERT: &str = "INSERT INTO air_quality \

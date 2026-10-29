@@ -1,6 +1,6 @@
 [package]
 name = "up-airquality"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 description = "Minimal 'fake UniFi Protect console' that adopts a UP-AirQuality sensor over its UCP4/WSS protocol and prints its readings. Reverse-engineered; not affiliated with Ubiquiti."
 license = "PolyForm-Noncommercial-1.0.0"
@@ -28,3 +28,9 @@ tokio-postgres = "0.7.12"
 tokio-postgres-rustls = "0.14.0"
 tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
+# No TLS features: rumqttc 0.25's rustls support pulls in rustls-webpki 0.102
+# (RUSTSEC-2026-0049/0098/0099/0104/0382) and the unmaintained rustls-pemfile.
+# Plain mqtt:// only until a release moves to rustls-webpki 0.103.
+rumqttc = { version = "0.25.1", default-features = false }
+url = "2"
+percent-encoding = "2"

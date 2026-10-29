@@ -7,7 +7,8 @@
 //! nothing is fetched from third parties) and annotates each metric with what
 //! it means, a healthy range, and a live Good/Moderate/Poor classification.
 
-use crate::state::{now_ms, Metrics, Snapshot};
+use crate::model::Reading;
+use crate::state::{now_ms, Metrics, Sensor, Snapshot};
 use anyhow::{Context, Result};
 use std::borrow::Cow;
 use std::sync::Arc;
@@ -106,62 +107,112 @@ fn render(snap: &Snapshot, path: &str) -> (&'static str, Cow<'static, [u8]>) {
     }
 }
 
-fn age_secs(snap: &Snapshot) -> Option<u64> {
-    if snap.updated_ms == 0 {
+fn age_secs(updated_ms: u64) -> Option<u64> {
+    if updated_ms == 0 {
         None
     } else {
-        Some(now_ms().saturating_sub(snap.updated_ms) / 1000)
+        Some(now_ms().saturating_sub(updated_ms) / 1000)
     }
 }
 
-fn readings_json(snap: &Snapshot) -> String {
-    let reading = snap
+fn sensor_json(id: &str, s: &Sensor) -> serde_json::Value {
+    let reading = s
         .last
         .as_ref()
-        .map(|r| serde_json::to_value(r).unwrap_or(serde_json::Value::Null))
+        .and_then(|r| serde_json::to_value(r).ok())
         .unwrap_or(serde_json::Value::Null);
     serde_json::json!({
+        "id": id,
         "reading": reading,
-        "updated_ms": snap.updated_ms,
-        "age_secs": age_secs(snap),
-        "count": snap.count,
-        "source": snap.peer,
+        "updated_ms": s.updated_ms,
+        "age_secs": age_secs(s.updated_ms),
+        "count": s.count,
+        "source": s.peer,
     })
-    .to_string()
 }
 
+/// `sensors` lists every sensor. The top-level fields mirror the most
+/// recently updated one, so single-sensor clients keep working.
+fn readings_json(snap: &Snapshot) -> String {
+    let mut root = match snap.latest() {
+        Some((id, s)) => sensor_json(id, s),
+        None => serde_json::json!({
+            "id": null, "reading": null, "updated_ms": 0,
+            "age_secs": null, "count": 0, "source": null,
+        }),
+    };
+    root["sensors"] = snap
+        .sensors
+        .iter()
+        .map(|(id, s)| sensor_json(id, s))
+        .collect();
+    root.to_string()
+}
+
+type Getter = fn(&Reading) -> Option<f64>;
+
+/// Prometheus gauges: name, help, field. One series per sensor.
+static GAUGES: [(&str, &str, Getter); 12] = [
+    ("upaq_aqi", "Air quality index", |r| r.aqi),
+    ("upaq_temperature_celsius", "Temperature C", |r| {
+        r.temperature
+    }),
+    ("upaq_humidity_percent", "Relative humidity %", |r| {
+        r.humidity
+    }),
+    ("upaq_co2_ppm", "CO2 ppm", |r| r.co2),
+    ("upaq_pm1p0_ugm3", "PM1.0 ug/m3", |r| r.pm1p0),
+    ("upaq_pm2p5_ugm3", "PM2.5 ug/m3", |r| r.pm2p5),
+    ("upaq_pm4p0_ugm3", "PM4.0 ug/m3", |r| r.pm4p0),
+    ("upaq_pm10p0_ugm3", "PM10 ug/m3", |r| r.pm10p0),
+    ("upaq_voc_index", "VOC index", |r| r.voc),
+    ("upaq_nox_index", "NOx index", |r| r.nox),
+    ("upaq_tvoc", "Total VOC", |r| r.tvoc),
+    ("upaq_vape_index", "Vape index", |r| r.vape),
+];
+
+/// Escape a Prometheus label value.
+fn label(v: &str) -> String {
+    v.replace('\\', "\\\\")
+        .replace('"', "\\\"")
+        .replace('\n', "\\n")
+}
+
+/// Every series carries `sensor="<id>"` (the sensor's MAC, or its address).
 fn metrics(snap: &Snapshot) -> String {
     let mut s = String::new();
-    let mut g = |name: &str, help: &str, v: Option<f64>| {
-        if let Some(v) = v {
-            s.push_str(&format!(
-                "# HELP {name} {help}\n# TYPE {name} gauge\n{name} {v}\n"
-            ));
+    for (name, help, get) in &GAUGES {
+        let series: Vec<(&String, f64)> = snap
+            .sensors
+            .iter()
+            .filter_map(|(id, sn)| sn.last.as_ref().and_then(get).map(|v| (id, v)))
+            .collect();
+        if series.is_empty() {
+            continue;
         }
-    };
-    if let Some(r) = &snap.last {
-        g("upaq_aqi", "Air quality index", r.aqi);
-        g("upaq_temperature_celsius", "Temperature C", r.temperature);
-        g("upaq_humidity_percent", "Relative humidity %", r.humidity);
-        g("upaq_co2_ppm", "CO2 ppm", r.co2);
-        g("upaq_pm1p0_ugm3", "PM1.0 ug/m3", r.pm1p0);
-        g("upaq_pm2p5_ugm3", "PM2.5 ug/m3", r.pm2p5);
-        g("upaq_pm4p0_ugm3", "PM4.0 ug/m3", r.pm4p0);
-        g("upaq_pm10p0_ugm3", "PM10 ug/m3", r.pm10p0);
-        g("upaq_voc_index", "VOC index", r.voc);
-        g("upaq_nox_index", "NOx index", r.nox);
-        g("upaq_tvoc", "Total VOC", r.tvoc);
-        g("upaq_vape_index", "Vape index", r.vape);
+        s.push_str(&format!("# HELP {name} {help}\n# TYPE {name} gauge\n"));
+        for (id, v) in series {
+            s.push_str(&format!("{name}{{sensor=\"{}\"}} {v}\n", label(id)));
+        }
     }
+    s.push_str("# HELP upaq_sensors Sensors seen since start\n# TYPE upaq_sensors gauge\n");
+    s.push_str(&format!("upaq_sensors {}\n", snap.sensors.len()));
     s.push_str(
         "# HELP upaq_readings_total Readings received\n# TYPE upaq_readings_total counter\n",
     );
-    s.push_str(&format!("upaq_readings_total {}\n", snap.count));
-    if snap.updated_ms != 0 {
-        s.push_str("# HELP upaq_last_update_timestamp_seconds Unix time of last reading\n# TYPE upaq_last_update_timestamp_seconds gauge\n");
+    for (id, sn) in &snap.sensors {
         s.push_str(&format!(
-            "upaq_last_update_timestamp_seconds {}\n",
-            snap.updated_ms / 1000
+            "upaq_readings_total{{sensor=\"{}\"}} {}\n",
+            label(id),
+            sn.count
+        ));
+    }
+    s.push_str("# HELP upaq_last_update_timestamp_seconds Unix time of last reading\n# TYPE upaq_last_update_timestamp_seconds gauge\n");
+    for (id, sn) in &snap.sensors {
+        s.push_str(&format!(
+            "upaq_last_update_timestamp_seconds{{sensor=\"{}\"}} {}\n",
+            label(id),
+            sn.updated_ms / 1000
         ));
     }
     s
@@ -220,6 +271,10 @@ const DASHBOARD_HTML: &str = r##"<!doctype html>
   footer { margin-top:26px; color:var(--muted); font-size:12px; font-family:var(--mono); }
   footer a { color:var(--accent); text-decoration:none; }
   footer a:hover { text-decoration:underline; }
+  .sensor + .sensor { margin-top:28px; }
+  .sensor__head { display:flex; align-items:center; flex-wrap:wrap; gap:10px; margin:0 0 12px; }
+  .sensor__name { font-size:15px; font-weight:700; color:var(--fg2); font-family:var(--mono); }
+  .sensor__age { font-size:12px; color:var(--muted); font-family:var(--mono); }
   .copyright { margin-top:14px; padding-top:12px; border-top:1px solid var(--border); color:var(--muted); font-size:11px; line-height:1.5; }
 </style>
 </head>
@@ -243,7 +298,7 @@ const DASHBOARD_HTML: &str = r##"<!doctype html>
     <span class="tag">UP-AirQuality</span>
   </header>
   <div class="status" id="status"><span class="dot"></span><span id="statustext">connecting…</span></div>
-  <div class="grid" id="grid"></div>
+  <div id="sensors"></div>
   <footer id="foot"></footer>
   <div class="copyright">&copy; 2026 Toasteez Limited. Company No. 07656957.</div>
 </div>
@@ -266,10 +321,11 @@ const METRICS = [
 const STATUS = { good:["Good","var(--good)"], warn:["Moderate","var(--warn)"], bad:["Poor","var(--bad)"] };
 function fmt(v){ return (v==null)?"–":(Math.round(v*10)/10); }
 function esc(s){ return String(s).replace(/[&<>]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c])); }
-function render(d){
-  const r = d.reading || {};
-  const grid = document.getElementById("grid");
-  grid.innerHTML = "";
+const LIVE_SECS = 30;
+function ago(age){ return age<LIVE_SECS ? `live · updated ${age}s ago` : `stale · last reading ${age}s ago`; }
+function grid(r){
+  const grid = document.createElement("div");
+  grid.className = "grid";
   for (const [k,label,unit,healthy,desc,band] of METRICS){
     const v = r[k];
     const card = document.createElement("div");
@@ -287,15 +343,40 @@ function render(d){
       `<div class="card__desc">${esc(desc)}</div>`;
     grid.appendChild(card);
   }
+  return grid;
+}
+function render(d){
+  const list = d.sensors || [];
+  const root = document.getElementById("sensors");
+  root.innerHTML = "";
+  if (!list.length) root.appendChild(grid({}));
+  for (const s of list){
+    const sec = document.createElement("section");
+    sec.className = "sensor";
+    if (list.length > 1){
+      const head = document.createElement("div");
+      head.className = "sensor__head";
+      head.innerHTML =
+        `<span class="sensor__name">${esc(s.id)}</span>`+
+        `<span class="tag">${esc(s.source||"?")}</span>`+
+        `<span class="sensor__age">${s.age_secs==null?"":esc(ago(s.age_secs))}</span>`;
+      sec.appendChild(head);
+    }
+    sec.appendChild(grid(s.reading || {}));
+    root.appendChild(sec);
+  }
+  const ages = list.map(s=>s.age_secs).filter(a=>a!=null);
+  const live = ages.filter(a=>a<LIVE_SECS).length;
   const st = document.getElementById("status");
-  const age = d.age_secs;
-  const live = age!=null && age < 30;
-  st.className = "status " + (age==null?"":(live?"live":"stale"));
+  st.className = "status " + (!ages.length ? "" : (live ? "live" : "stale"));
   document.getElementById("statustext").textContent =
-    (age==null) ? "no readings yet — waiting for the sensor to connect"
-                : (live ? `live · updated ${age}s ago` : `stale · last reading ${age}s ago`);
+    !ages.length      ? "no readings yet — waiting for a sensor to connect"
+    : list.length===1 ? ago(ages[0])
+                      : `${live} of ${list.length} sensors live`;
+  const total = list.reduce((n,s)=>n+(s.count||0), 0);
+  const src = list.length===1 ? ` · source ${esc(list[0].source||"?")}` : ` · ${list.length} sensors`;
   document.getElementById("foot").innerHTML =
-    `${d.count||0} readings · source ${esc(d.source||"?")} · `+
+    `${total} readings${list.length?src:""} · `+
     `<a href="/metrics">/metrics</a> · <a href="/readings.json">/readings.json</a>`;
 }
 async function tick(){
@@ -313,13 +394,74 @@ setInterval(tick, 3000); tick();
 mod tests {
     use super::*;
 
-    fn snap(peer: Option<&str>) -> Snapshot {
-        Snapshot {
-            last: None,
-            updated_ms: 0,
-            count: 0,
-            peer: peer.map(str::to_string),
+    /// A snapshot with one sensor (no readings yet) per `(id, peer)`.
+    fn snap_of(sensors: &[(&str, &str)]) -> Snapshot {
+        let mut s = Snapshot::default();
+        for (id, peer) in sensors {
+            s.sensors.insert(
+                id.to_string(),
+                Sensor {
+                    peer: Some(peer.to_string()),
+                    ..Default::default()
+                },
+            );
         }
+        s
+    }
+
+    fn snap(peer: Option<&str>) -> Snapshot {
+        match peer {
+            Some(p) => snap_of(&[("02AABBCCDDEE", p)]),
+            None => Snapshot::default(),
+        }
+    }
+
+    fn with_reading(mut s: Snapshot, id: &str, co2: f64, updated_ms: u64) -> Snapshot {
+        let sn = s.sensors.get_mut(id).unwrap();
+        sn.last = Some(Reading {
+            co2: Some(co2),
+            ..Default::default()
+        });
+        sn.updated_ms = updated_ms;
+        sn.count += 1;
+        s
+    }
+
+    #[test]
+    fn readings_json_lists_sensors_and_keeps_legacy_fields() {
+        let s = snap_of(&[("AAAAAAAAAAAA", "10.0.0.1"), ("BBBBBBBBBBBB", "10.0.0.2")]);
+        let s = with_reading(s, "AAAAAAAAAAAA", 500.0, 1_000);
+        let s = with_reading(s, "BBBBBBBBBBBB", 900.0, 2_000);
+        let v: serde_json::Value = serde_json::from_str(&readings_json(&s)).unwrap();
+        assert_eq!(v["sensors"].as_array().unwrap().len(), 2);
+        assert_eq!(v["sensors"][0]["id"], "AAAAAAAAAAAA");
+        // Top level mirrors the most recently updated sensor.
+        assert_eq!(v["id"], "BBBBBBBBBBBB");
+        assert_eq!(v["reading"]["co2"], 900.0);
+        assert_eq!(v["source"], "10.0.0.2");
+
+        let empty: serde_json::Value =
+            serde_json::from_str(&readings_json(&Snapshot::default())).unwrap();
+        assert!(empty["reading"].is_null());
+        assert_eq!(empty["count"], 0);
+        assert_eq!(empty["sensors"].as_array().unwrap().len(), 0);
+    }
+
+    #[test]
+    fn metrics_label_each_sensor() {
+        let s = snap_of(&[("AAAAAAAAAAAA", "10.0.0.1"), ("BBBBBBBBBBBB", "10.0.0.2")]);
+        let s = with_reading(s, "AAAAAAAAAAAA", 500.0, 1_000);
+        let s = with_reading(s, "BBBBBBBBBBBB", 900.0, 2_000);
+        let m = metrics(&s);
+        assert_eq!(m.matches("# TYPE upaq_co2_ppm gauge").count(), 1);
+        assert!(m.contains("upaq_co2_ppm{sensor=\"AAAAAAAAAAAA\"} 500"));
+        assert!(m.contains("upaq_co2_ppm{sensor=\"BBBBBBBBBBBB\"} 900"));
+        assert!(m.contains("upaq_sensors 2"));
+        assert!(m.contains("upaq_readings_total{sensor=\"BBBBBBBBBBBB\"} 1"));
+        assert!(
+            !m.contains("upaq_aqi"),
+            "no series for fields no sensor sent"
+        );
     }
 
     #[test]

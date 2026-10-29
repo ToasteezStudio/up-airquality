@@ -100,6 +100,46 @@ Adoption is remembered by the sensor, so next time start the collector with
 **Finding the sensor's IP:** check your DHCP/router client list for a host like
 `UP-AirQuality-xxxxxx`, or scan for an HTTPS service on tcp/8080.
 
+### Several sensors
+
+One collector handles several sensors, for example one per floor or room.
+Pass `--host` once per sensor, or as a comma-separated list:
+
+```bash
+# Adopt all three (once), then serve them:
+./target/release/up-airquality --host 10.0.30.11,10.0.30.12,10.0.30.13 run
+./target/release/up-airquality --host 10.0.30.11,10.0.30.12,10.0.30.13 serve
+```
+
+Each sensor is identified by its MAC address. The dashboard shows a section
+per sensor, `/readings.json` lists them under `sensors`, and every
+`/metrics` series carries a `sensor="<MAC>"` label. The database already
+records which sensor each row came from in its `source` column (the sensor's
+IP address).
+
+### A sensor that's already adopted somewhere else
+
+A sensor reports to one console at a time. If it's already adopted by UniFi
+Protect or another collector, release it first, then adopt it here:
+
+1. **Release it from the system that has it.**
+   - **UniFi Protect:** in the sensor's settings, under *Manage*, choose
+     **Unmanage**. This removes it from Protect *and* restores it to factory
+     defaults, so you don't need to touch the sensor.
+   - **No access to that system** (for example a second-hand sensor):
+     factory-reset it with its **Reset button**. Keep it powered over PoE and
+     hold the button for 5–10 seconds, until the LED shows the restore has
+     started. [techspecs.ui.com](https://techspecs.ui.com) shows where the
+     button is. A physical reset doesn't remove the sensor from the old
+     system's device list, so delete it there too if you can.
+2. **Adopt it here** with `up-airquality --host <SENSOR_IP> run`, as in the
+   Quickstart. A reset sensor may get a new IP address from DHCP.
+
+The sensor's own API has no "unadopt" call, so up-airquality can't release a
+sensor that another system owns. That's why it's done from that system or with
+the Reset button. See Ubiquiti's
+[factory reset guide](https://help.ui.com/hc/en-us/articles/205143490).
+
 ## Commands
 
 | Command | What it does |
@@ -113,8 +153,9 @@ Flags and environment. Put `--host`, `--user` and `--pass` **before** the
 command (`up-airquality --host <SENSOR_IP> serve`); `--http-port` and `--pg`
 can go anywhere.
 
-- `--host <ip>`: sensor IP. Required for `info`/`locate`/`run`. With `serve`,
-  the console only accepts connections from this address (recommended).
+- `--host <ip>`: sensor IP; repeat it or comma-separate for several sensors.
+  Required for `info`/`locate`/`run`, which act on each sensor. With `serve`,
+  the console only accepts connections from these addresses (recommended).
 - `--user` / `--pass` — login (default `ubnt` / `ubnt`, the vendor pre-adoption creds).
 - `--http-port <n>` — dashboard/metrics port (default `8099`).
 - `--pg "<dsn>"` or `UPAQ_PG_DSN` — optional Postgres/TimescaleDB DSN to persist readings
@@ -122,14 +163,49 @@ can go anywhere.
   Prefer `UPAQ_PG_DSN`, because command-line arguments are visible to other local users.
   Add `sslmode=require` to the DSN for TLS. The server certificate is verified against
   the system trust store, or against a PEM CA bundle given in `UPAQ_PG_CA`.
+- `--mqtt "<url>"` or `UPAQ_MQTT_URL` — optional MQTT broker for Home Assistant
+  (see below): `mqtt://[user:pass@]host[:1883]`. MQTT over TLS (`mqtts://`)
+  is not supported yet. Prefer the environment variable, for the same reason
+  as `UPAQ_PG_DSN`.
+- `--mqtt-discovery-prefix <prefix>` — Home Assistant discovery prefix
+  (default `homeassistant`).
 - `RUST_LOG=debug` — verbose protocol logging.
+
+## Home Assistant
+
+Point the collector at the MQTT broker Home Assistant uses (for example the
+Mosquitto add-on) and each sensor appears in Home Assistant on its own as a
+device, with every reading as a correctly typed entity. No YAML is needed.
+
+```bash
+UPAQ_MQTT_URL='mqtt://<user>:<password>@<broker>:1883' \
+  ./target/release/up-airquality --host <SENSOR_IP> serve
+```
+
+- Uses [MQTT Discovery](https://www.home-assistant.io/integrations/mqtt/#mqtt-discovery):
+  one device per sensor, identified by its MAC address, so any number of
+  sensors work.
+- Entities: CO₂, PM1/PM2.5/PM4/PM10, temperature, humidity, AQI and total VOC
+  with their Home Assistant device classes and units, plus the VOC, NOx and
+  vape indices (unitless).
+- If a sensor stops reporting for 5 minutes its entities show as unavailable.
+  If the collector itself goes offline they all do, via an MQTT last will on
+  `up-airquality/status`.
+- Readings are also published as JSON on `up-airquality/<mac>/state`, for
+  anything else that speaks MQTT.
+- Special characters in the user name or password must be percent-encoded in
+  the URL (`@` → `%40`, `:` → `%3A`).
 
 ## Dashboard & metrics
 
 `serve`/`run` expose:
 - `/` — live dashboard (auto-updating cards with healthy-range guidance per metric).
-- `/readings.json` — latest reading as JSON.
-- `/metrics` — Prometheus gauges (`upaq_co2_ppm`, `upaq_pm2p5_ugm3`, …).
+- `/readings.json` — latest readings as JSON: a `sensors` array with one entry
+  per sensor (`id`, `source`, `reading`, `updated_ms`, `age_secs`, `count`).
+  The top-level fields repeat the most recently updated sensor, for clients
+  that expect a single sensor.
+- `/metrics` — Prometheus gauges (`upaq_co2_ppm`, `upaq_pm2p5_ugm3`, …), one
+  series per sensor, labelled `sensor="<MAC>"`.
 - `/healthz` — returns `ok` (for uptime checks).
 
 Readings refresh every few seconds. Native apps and scripts (e.g. a WidgetKit
@@ -153,6 +229,9 @@ Designed for a trusted home or office LAN:
   device generates one per unit and there is nothing to verify it against.
   Do this on a network you trust.
 - **Database.** Use `sslmode=require` if readings cross an untrusted network.
+- **MQTT.** Use a broker account with a password, and keep the broker on a
+  network you trust: MQTT over TLS isn't supported yet, so readings and the
+  broker password travel unencrypted. Credentials are never logged.
 
 ## Optional: history (TimescaleDB) + Grafana + Prometheus
 
@@ -176,7 +255,7 @@ tool decodes, displays, and optionally stores. Protocol details: `docs/PROTOCOL.
 
 ## Layout
 
-- `src/` — the Rust tool (`client` HTTPS, `proto` framing, `console` WSS server, `model`, `pg` Timescale writer, `http` dashboard).
+- `src/` — the Rust tool (`client` HTTPS, `proto` framing, `console` WSS server, `model`, `pg` Timescale writer, `mqtt` Home Assistant publisher, `tls`, `http` dashboard).
 - `docs/PROTOCOL.md` — reverse-engineered protocol.
 - `docs/REFLASH.md` — notes on custom/open firmware (optional; not needed to run the app).
 - `db/`, `deploy/` — schema + server deployment kit.

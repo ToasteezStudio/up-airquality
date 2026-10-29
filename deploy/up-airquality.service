@@ -15,7 +15,7 @@ Environment=RUST_LOG=info
 #   /etc/up-airquality.env  (chmod 600), one line:
 #   UPAQ_PG_DSN=host=<DB_HOST> port=5432 user=upaq password=... dbname=airquality
 EnvironmentFile=/etc/up-airquality.env
-# --host restricts the console to the sensor's address.
+# --host restricts the console to the sensor's address (comma-separate several).
 ExecStart=/opt/up-airquality/up-airquality --host <SENSOR_IP> serve --http-port 8099
 Restart=always
 RestartSec=5
